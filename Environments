@@ -1,0 +1,1 @@
+export KUBECONFIG=/home/juanpa/Projects/kubernetes/.kube/config

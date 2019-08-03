@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Kubernetes on AWS (EKS)
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  
+  StackOwner:
+    Description: The instances will have this parameter as an Owner tag.
+    Type: String
+    MinLength: "1"
+    MaxLength: "50"
+  
+  Environment:
+    Type: String
+    Description: Environment in which this stack is going to be used for
+    AllowedValues:
+      - dev
+      - prod
+
+  VpcBlock:
+    Type: String
+    Default: 192.168.0.0/16
+    AllowedPattern: "[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}"
+    Description: The CIDR range for the VPC. This should be a valid private (RFC 1918) CIDR range.
+
+  Subnet01Block:
+    Type: String
+    AllowedPattern: "[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}"
+    Default: 192.168.64.0/18
+    Description: CidrBlock for subnet 01 within the VPC
+
+  Subnet02Block:
+    Type: String
+    AllowedPattern: "[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}"
+    Default: 192.168.128.0/18
+    Description: CidrBlock for subnet 02 within the VPC
+
+  Subnet03Block:
+    Type: String
+    AllowedPattern: "[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}"
+    Default: 192.168.192.0/18
+    Description: CidrBlock for subnet 03 within the VPC
+  
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: Stack Parameters
+        Parameters:
+          - KeyName
+          - StackOwner
+          - Environment
+
+      -
+        Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcBlock
+          - Subnet01Block
+          - Subnet02Block
+          - Subnet03Block
+
+Resources:
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties: 
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VPC'
+        - Key: Owner
+          Value: !Ref StackOwner
+        - Key: Department
+          Value: AI
+        - Key: Env
+          Value: !Ref Environment
+        - Key: Job
+          Value: Kubernetes
+  KubeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: Kubernetes-Role
+      AssumeRolePolicyDocument: {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "eks.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:  !Ref VpcBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-VPC'
+      - Key: Owner
+        Value: !Ref StackOwner
+      - Key: Department
+        Value: AI
+      - Key: Env
+        Value: !Ref Environment
+      - Key: Job
+        Value: Kubernetes
+
+  Subnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-2a
+      CidrBlock: !Ref Subnet01Block
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-Subnet01"
+      - Key: Owner
+        Value: !Ref StackOwner
+      - Key: Department
+        Value: AI
+      - Key: Env
+        Value: !Ref Environment
+      - Key: Job
+        Value: Kubernetes
+
+  Subnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-2b
+      CidrBlock: !Ref Subnet02Block
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-Subnet02"
+      - Key: Owner
+        Value: !Ref StackOwner
+      - Key: Department
+        Value: AI
+      - Key: Env
+        Value: !Ref Environment
+      - Key: Job
+        Value: Kubernetes
+
+  Subnet03:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-2c
+      CidrBlock: !Ref Subnet03Block
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-Subnet03"
+      - Key: Owner
+        Value: !Ref StackOwner
+      - Key: Department
+        Value: AI
+      - Key: Env
+        Value: !Ref Environment
+      - Key: Job
+        Value: Kubernetes
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Subnets
+        - Key: Network
+          Value: Public
+        - Key: Owner
+          Value: !Ref StackOwner
+        - Key: Department
+          Value: AI
+        - Key: Env
+          Value: !Ref Environment
+        - Key: Job
+          Value: Kubernetes
+
+  Route:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  Subnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet01
+      RouteTableId: !Ref RouteTable
+
+  Subnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet02
+      RouteTableId: !Ref RouteTable
+
+  Subnet03RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet03
+      RouteTableId: !Ref RouteTable
+
+  ControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cluster communication with worker nodes
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-SecurityGroup
+        - Key: Owner
+          Value: !Ref StackOwner
+        - Key: Department
+          Value: AI
+        - Key: Env
+          Value: !Ref Environment
+        - Key: Job
+          Value: Kubernetes
+
+  KubeCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub "${AWS::StackName}"
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !GetAtt ControlPlaneSecurityGroup.GroupId
+        SubnetIds: 
+          - !Ref Subnet01
+          - !Ref Subnet02
+          - !Ref Subnet03
+      RoleArn: !GetAtt KubeRole.Arn
+
+Outputs:
+  SubnetIds1:
+    Description: Subnet01 in the VPC
+    Value: !Ref Subnet01
+    Export:
+      Name: !Sub "${AWS::StackName}-Subnet01"
+
+  SubnetIds2:
+    Description: Subnet02 in the VPC
+    Value: !Ref Subnet02
+    Export:
+      Name: !Sub "${AWS::StackName}-Subnet02"
+
+  SubnetIds3:
+    Description: Subnet03 in the VPC
+    Value: !Ref Subnet03
+    Export:
+      Name: !Sub "${AWS::StackName}-Subnet03"
+
+  SecurityGroups:
+    Description: Security group for the cluster control plane communication with worker nodes
+    Value: !Ref ControlPlaneSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-SecurityGroups"
+
+  VpcId:
+    Description: The VPC Id
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
