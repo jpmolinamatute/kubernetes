@@ -1,0 +1,6 @@
+created a kubernetes cluster in EKS
+created a cluster in rancher
+setup kubectl locally to work with multiple clusters
+configured a docker registry in docker hub
+configured docker hub to pull images (and build them) from github on `git push`
+created my own docker file for nifi and java
