@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nifi
+spec:
+  containers:
+    - name: nifi
+      image: nifi
+      imagePullPolicy: IfNotPresent
+  # nodeSelector:
+  #   disktype: ssd
